@@ -1,7 +1,9 @@
 package com.example.ui
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import com.example.data.Chapter
+import com.example.data.CloudRepository
 import com.example.data.Comment
 import com.example.data.CommentReply
 import com.example.data.ReactionType
@@ -14,6 +16,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 
 enum class HomeTab(val label: String) {
     FOR_YOU("আপনার জন্য"),
@@ -31,22 +34,43 @@ data class SwapnobajUiState(
     val readingTheme: ReadingTheme = ReadingTheme.SEPIA,
     val readingFontSizeSp: Float = 18f,
     val isCommentsSheetOpen: Boolean = false,
-    val currentComments: List<Comment> = SampleData.sampleComments,
+    val activeCommentsStory: Story? = null,
+    val commentsByStoryId: Map<String, List<Comment>> = emptyMap(),
+    val currentComments: List<Comment> = emptyList(),
     val isTipDialogOpen: Boolean = false,
     val tipTargetAuthor: String? = null,
     val isAuthModalOpen: Boolean = false,
     val isBookshelfGridView: Boolean = true,
     val bookshelfFilter: String = "সব",
     val writerStats: WriterStats = WriterStats(),
-    val isUserLoggedIn: Boolean = true,
-    val loggedInUserName: String = "স্বপ্নবাজ পাঠক",
-    val loggedInUserHandle: String = "@swapnobaj_reader",
+    val isUserLoggedIn: Boolean = false,
+    val loggedInUserName: String = "",
+    val loggedInUserHandle: String = "",
+    val loggedInUserBio: String = "",
     val successSnackbarMessage: String? = null
 )
 
 class SwapnobajViewModel : ViewModel() {
+    private val cloudRepository = CloudRepository()
     private val _uiState = MutableStateFlow(SwapnobajUiState())
     val uiState: StateFlow<SwapnobajUiState> = _uiState.asStateFlow()
+
+    init {
+        // Listen to cloud stories in real time if cloud is available
+        viewModelScope.launch {
+            try {
+                cloudRepository.getStoriesFlow().collect { cloudStories ->
+                    if (cloudStories.isNotEmpty()) {
+                        _uiState.update { state ->
+                            val cloudIds = cloudStories.map { it.id }.toSet()
+                            val localOnly = state.stories.filter { it.id !in cloudIds }
+                            state.copy(stories = cloudStories + localOnly)
+                        }
+                    }
+                }
+            } catch (_: Exception) {}
+        }
+    }
 
     fun selectHomeTab(tab: HomeTab) {
         _uiState.update { it.copy(currentTab = tab) }
@@ -183,28 +207,82 @@ class SwapnobajViewModel : ViewModel() {
     }
 
     fun openCommentsSheet(story: Story) {
-        _uiState.update { it.copy(isCommentsSheetOpen = true) }
+        val existingComments = _uiState.value.commentsByStoryId[story.id] ?: emptyList()
+        _uiState.update {
+            it.copy(
+                isCommentsSheetOpen = true,
+                activeCommentsStory = story,
+                currentComments = existingComments
+            )
+        }
+        // Listen to live comments for this story from cloud
+        viewModelScope.launch {
+            try {
+                cloudRepository.getCommentsFlow(story.id).collect { cloudComments ->
+                    if (cloudComments.isNotEmpty()) {
+                        _uiState.update { state ->
+                            val updatedMap = state.commentsByStoryId.toMutableMap()
+                            updatedMap[story.id] = cloudComments
+                            state.copy(
+                                commentsByStoryId = updatedMap,
+                                currentComments = if (state.activeCommentsStory?.id == story.id) cloudComments else state.currentComments
+                            )
+                        }
+                    }
+                }
+            } catch (_: Exception) {}
+        }
     }
 
     fun closeCommentsSheet() {
-        _uiState.update { it.copy(isCommentsSheetOpen = false) }
+        _uiState.update { it.copy(isCommentsSheetOpen = false, activeCommentsStory = null) }
     }
 
     fun addComment(text: String) {
         if (text.isBlank()) return
+        val story = _uiState.value.activeCommentsStory ?: _uiState.value.currentReaderStory
+        val storyId = story?.id ?: "general"
+        val commenterName = if (_uiState.value.isUserLoggedIn && _uiState.value.loggedInUserName.isNotBlank()) {
+            _uiState.value.loggedInUserName
+        } else {
+            "স্বপ্নবাজ পাঠক"
+        }
         val newComment = Comment(
             id = "comment-${System.currentTimeMillis()}",
-            authorName = _uiState.value.loggedInUserName,
+            storyId = storyId,
+            authorName = commenterName,
             authorAvatar = "",
-            text = text,
+            text = text.trim(),
             timeAgo = "এইমাত্র",
             likesCount = 0
         )
-        _uiState.update {
-            it.copy(
-                currentComments = listOf(newComment) + it.currentComments,
-                successSnackbarMessage = "আপনার মন্তব্যটি প্রকাশিত হয়েছে"
+        _uiState.update { state ->
+            val updatedMap = state.commentsByStoryId.toMutableMap()
+            val list = listOf(newComment) + (updatedMap[storyId] ?: emptyList())
+            updatedMap[storyId] = list
+
+            val updatedStories = state.stories.map { s ->
+                if (s.id == storyId) s.copy(commentsCount = s.commentsCount + 1) else s
+            }
+
+            val updatedReaderStory = if (state.currentReaderStory?.id == storyId) {
+                state.currentReaderStory?.copy(commentsCount = (state.currentReaderStory?.commentsCount ?: 0) + 1)
+            } else state.currentReaderStory
+
+            state.copy(
+                commentsByStoryId = updatedMap,
+                currentComments = list,
+                stories = updatedStories,
+                currentReaderStory = updatedReaderStory,
+                successSnackbarMessage = "আপনার মন্তব্যটি সফলভাবে প্রকাশিত হয়েছে ✨"
             )
+        }
+
+        // Upload comment to cloud asynchronously
+        viewModelScope.launch {
+            try {
+                cloudRepository.addCommentToCloud(storyId, newComment)
+            } catch (_: Exception) {}
         }
     }
 
@@ -242,14 +320,30 @@ class SwapnobajViewModel : ViewModel() {
         genre: String,
         chapters: List<Chapter>
     ) {
+        val writerName = if (_uiState.value.isUserLoggedIn && _uiState.value.loggedInUserName.isNotBlank()) {
+            _uiState.value.loggedInUserName
+        } else {
+            "স্বপ্নবাজ স্বাধীন লেখক"
+        }
+        val writerHandle = if (_uiState.value.isUserLoggedIn && _uiState.value.loggedInUserHandle.isNotBlank()) {
+            _uiState.value.loggedInUserHandle
+        } else {
+            "@independent_writer"
+        }
+        val writerBio = if (_uiState.value.isUserLoggedIn && _uiState.value.loggedInUserBio.isNotBlank()) {
+            _uiState.value.loggedInUserBio
+        } else {
+            "স্বপ্নবাজ পরিবারের নতুন কলমসেনানী।"
+        }
+
         val newStory = Story(
             id = "story-${System.currentTimeMillis()}",
             title = title,
             excerpt = if (content.length > 120) content.take(120) + "..." else content,
             fullContent = content,
-            authorName = _uiState.value.loggedInUserName,
-            authorHandle = _uiState.value.loggedInUserHandle,
-            authorBio = "স্বপ্নবাজ পরিবারের নতুন কলমসেনানী।",
+            authorName = writerName,
+            authorHandle = writerHandle,
+            authorBio = writerBio,
             genre = genre,
             type = type,
             coverGradientStart = 0xFF1E3A8A,
@@ -268,6 +362,46 @@ class SwapnobajViewModel : ViewModel() {
             it.copy(
                 stories = listOf(newStory) + it.stories,
                 successSnackbarMessage = "অভিনন্দন! আপনার লেখাটি সফলভাবে প্রকাশিত হয়েছে ✨"
+            )
+        }
+
+        // Upload new story to cloud for all readers
+        viewModelScope.launch {
+            try {
+                cloudRepository.publishStoryToCloud(newStory)
+            } catch (_: Exception) {}
+        }
+    }
+
+    fun loginAuthor(name: String, penName: String = "", bio: String = "") {
+        val cleanName = if (name.isNotBlank()) name.trim() else "স্বপ্নবাজ লেখক"
+        val handle = if (penName.isNotBlank()) {
+            "@" + penName.trim().lowercase().replace(" ", "_")
+        } else {
+            "@" + cleanName.lowercase().replace(" ", "_")
+        }
+        val authorBio = if (bio.isNotBlank()) bio.trim() else "বাংলা সাহিত্যের অনুরাগী লেখক ও স্বপ্নবাজের সদস্য।"
+
+        _uiState.update {
+            it.copy(
+                isUserLoggedIn = true,
+                loggedInUserName = cleanName,
+                loggedInUserHandle = handle,
+                loggedInUserBio = authorBio,
+                isAuthModalOpen = false,
+                successSnackbarMessage = "স্বাগতম, $cleanName! লেখক হিসেবে সফলভাবে লগইন হয়েছে ✨"
+            )
+        }
+    }
+
+    fun logoutAuthor() {
+        _uiState.update {
+            it.copy(
+                isUserLoggedIn = false,
+                loggedInUserName = "",
+                loggedInUserHandle = "",
+                loggedInUserBio = "",
+                successSnackbarMessage = "লগআউট সম্পন্ন হয়েছে। আপনি এখন সাধারণ পাঠক মোডে আছেন।"
             )
         }
     }

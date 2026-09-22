@@ -16,16 +16,23 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.MonetizationOn
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.SubdirectoryArrowRight
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -40,6 +47,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -81,12 +89,22 @@ fun CommentsBottomSheet(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Text(
-                    text = "পাঠকের প্রতিক্রিয়া (${uiState.currentComments.size}টি মন্তব্য)",
-                    fontSize = 17.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "পাঠকের প্রতিক্রিয়া (${uiState.currentComments.size}টি মন্তব্য)",
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    uiState.activeCommentsStory?.let { s ->
+                        Text(
+                            text = s.title,
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.primary,
+                            maxLines = 1
+                        )
+                    }
+                }
                 IconButton(onClick = { viewModel.closeCommentsSheet() }) {
                     Icon(Icons.Default.Close, contentDescription = "Close")
                 }
@@ -95,14 +113,38 @@ fun CommentsBottomSheet(
             Spacer(modifier = Modifier.height(10.dp))
 
             // Comments List
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(300.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp)
-            ) {
-                items(uiState.currentComments, key = { it.id }) { comment ->
-                    CommentItemView(comment = comment)
+            if (uiState.currentComments.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(200.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = "এখনো কোনো মন্তব্য করা হয়নি।",
+                            fontSize = 14.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "প্রথম পাঠক হিসেবে আপনার অনুভূতি জানান! ✍️",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(300.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    items(uiState.currentComments, key = { it.id }) { comment ->
+                        CommentItemView(comment = comment)
+                    }
                 }
             }
 
@@ -343,86 +385,252 @@ fun TipWriterDialog(
 fun AuthModalDialog(
     isLoggedIn: Boolean,
     userName: String,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    onLoginAuthor: (name: String, penName: String, bio: String) -> Unit,
+    onLogoutAuthor: () -> Unit
 ) {
-    var phoneInput by remember { mutableStateOf("") }
-    var otpInput by remember { mutableStateOf("") }
-    var isOtpSent by remember { mutableStateOf(false) }
+    var isRegisterMode by remember { mutableStateOf(false) }
+    var authorName by remember { mutableStateOf("") }
+    var penName by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    var authorBio by remember { mutableStateOf("") }
+    var isPasswordVisible by remember { mutableStateOf(false) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
-            Text(
-                text = "স্বপ্নবাজ অ্যাকাউন্টে প্রবেশ",
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Edit,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(24.dp)
+                )
+                Text(
+                    text = if (isLoggedIn) "লেখক প্রোফাইল ও সেটিংস" 
+                           else if (isRegisterMode) "লেখক নিবন্ধন (Sign Up)" 
+                           else "লেখক/লেখিকা লগইন",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
         },
         text = {
-            Column {
-                Text(
-                    text = "বাংলা গল্প, কবিতা ও উপন্যাসের উন্মুক্ত প্ল্যাটফর্মে আপনাকে স্বাগতম।",
-                    fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(modifier = Modifier.height(14.dp))
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+            ) {
+                if (isLoggedIn) {
+                    // Logged In Status Card
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.08f))
+                    ) {
+                        Column(modifier = Modifier.padding(14.dp)) {
+                            Text(
+                                text = "বর্তমানে লগইন আছেন:",
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = userName,
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Text(
+                                text = "ভেরিফাইড স্বপ্নবাজ লেখক ✨",
+                                fontSize = 12.sp,
+                                color = Color(0xFF0D9488),
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
 
-                // Google Sign-In Button
-                Button(
-                    onClick = onDismiss,
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                        contentColor = MaterialTheme.colorScheme.onSurface
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Button(
+                        onClick = {
+                            onLogoutAuthor()
+                            onDismiss()
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                    ) {
+                        Text("লগআউট করুন", color = MaterialTheme.colorScheme.onError, fontWeight = FontWeight.Bold)
+                    }
+                } else {
+                    Text(
+                        text = "পাঠকরা কোনো লগইন ছাড়াই সব গল্প-কবিতা পড়তে পারবেন। শুধুমাত্র নতুন লেখা প্রকাশ ও প্রোফাইল পরিচালনার জন্য লেখকদের লগইন প্রয়োজন।",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        lineHeight = 17.sp
                     )
-                ) {
-                    Text("Google দিয়ে চালিয়ে যান (Google Sign-In)", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                }
+                    Spacer(modifier = Modifier.height(14.dp))
 
-                Spacer(modifier = Modifier.height(12.dp))
+                    // Google One-Tap Sign In
+                    Button(
+                        onClick = {
+                            onLoginAuthor("আহমেদ তানভীর", "tanveer_writes", "গল্প ও কবিতা লিখি। স্বপ্নবাজের গর্বিত লেখক।")
+                            onDismiss()
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                            contentColor = MaterialTheme.colorScheme.onSurface
+                        )
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("G", fontSize = 16.sp, fontWeight = FontWeight.Black, color = Color(0xFFEA4335))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Google অ্যাকাউন্ট দিয়ে লগইন করুন", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                        }
+                    }
 
-                Text(
-                    text = "অথবা মোবাইল নম্বর দিয়ে লগইন করুন:",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Medium
-                )
-                Spacer(modifier = Modifier.height(6.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
 
-                OutlinedTextField(
-                    value = phoneInput,
-                    onValueChange = { phoneInput = it },
-                    placeholder = { Text("017XXXXXXXX") },
-                    leadingIcon = { Icon(Icons.Default.Phone, contentDescription = null, modifier = Modifier.size(16.dp)) },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(10.dp),
-                    singleLine = true
-                )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(modifier = Modifier.weight(1f).height(1.dp).background(MaterialTheme.colorScheme.outlineVariant))
+                        Text(
+                            text = " অথবা নাম ও পাসওয়ার্ড দিয়ে ",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 6.dp)
+                        )
+                        Box(modifier = Modifier.weight(1f).height(1.dp).background(MaterialTheme.colorScheme.outlineVariant))
+                    }
 
-                if (isOtpSent) {
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // Name Field
                     OutlinedTextField(
-                        value = otpInput,
-                        onValueChange = { otpInput = it },
-                        placeholder = { Text("৪ ডিজিটের OTP কোড লিখুন") },
+                        value = authorName,
+                        onValueChange = {
+                            authorName = it
+                            errorMessage = null
+                        },
+                        label = { Text("লেখকের নাম (Author Name)") },
+                        placeholder = { Text("যেমন: কাজী নজরুল ইসলাম") },
+                        leadingIcon = { Icon(Icons.Default.Person, contentDescription = null, modifier = Modifier.size(18.dp)) },
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(10.dp),
                         singleLine = true
                     )
-                }
 
-                Spacer(modifier = Modifier.height(10.dp))
+                    Spacer(modifier = Modifier.height(10.dp))
 
-                Button(
-                    onClick = {
-                        if (!isOtpSent) isOtpSent = true
-                        else onDismiss()
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(10.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
-                ) {
-                    Text(if (isOtpSent) "যাচাই ও প্রবেশ করুন" else "OTP পাঠান")
+                    if (isRegisterMode) {
+                        // Pen Name / Handle Field
+                        OutlinedTextField(
+                            value = penName,
+                            onValueChange = { penName = it },
+                            label = { Text("কলম নাম বা ইউজারনেম (ঐচ্ছিক)") },
+                            placeholder = { Text("যেমন: swapno_kobi") },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(10.dp),
+                            singleLine = true
+                        )
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        // Short Bio Field
+                        OutlinedTextField(
+                            value = authorBio,
+                            onValueChange = { authorBio = it },
+                            label = { Text("ছোট লেখক পরিচিতি / বায়ো") },
+                            placeholder = { Text("যেমন: গল্প এবং উপন্যাসের মুগ্ধ কারিগর...") },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(10.dp),
+                            maxLines = 2
+                        )
+
+                        Spacer(modifier = Modifier.height(10.dp))
+                    }
+
+                    // Password Field
+                    OutlinedTextField(
+                        value = password,
+                        onValueChange = {
+                            password = it
+                            errorMessage = null
+                        },
+                        label = { Text("পাসওয়ার্ড (Password)") },
+                        placeholder = { Text("কমপক্ষে ৪ অক্ষরের পাসওয়ার্ড") },
+                        leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                        trailingIcon = {
+                            IconButton(onClick = { isPasswordVisible = !isPasswordVisible }) {
+                                Icon(
+                                    imageVector = if (isPasswordVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                    contentDescription = "Toggle password",
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        },
+                        visualTransformation = if (isPasswordVisible) androidx.compose.ui.text.input.VisualTransformation.None else androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp),
+                        singleLine = true
+                    )
+
+                    errorMessage?.let { error ->
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(text = error, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    // Submit Button
+                    Button(
+                        onClick = {
+                            if (authorName.isBlank()) {
+                                errorMessage = "অনুগ্রহ করে আপনার নাম লিখুন"
+                            } else if (password.length < 4) {
+                                errorMessage = "পাসওয়ার্ড অন্তত ৪ অক্ষরের হতে হবে"
+                            } else {
+                                onLoginAuthor(authorName, penName, authorBio)
+                                onDismiss()
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                    ) {
+                        Text(
+                            text = if (isRegisterMode) "লেখক হিসেবে অ্যাকাউন্ট খুলুন" else "লেখক অ্যাকাউন্টে প্রবেশ করুন",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Toggle between Login & Register
+                    TextButton(
+                        onClick = {
+                            isRegisterMode = !isRegisterMode
+                            errorMessage = null
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = if (isRegisterMode) "ইতিমধ্যে অ্যাকাউন্ট আছে? লগইন করুন" 
+                                   else "নতুন লেখক? এখানে ফ্রি অ্যাকাউন্ট খুলুন",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
                 }
             }
         },

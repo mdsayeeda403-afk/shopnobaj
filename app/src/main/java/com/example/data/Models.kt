@@ -38,6 +38,7 @@ data class CommentReply(
 
 data class Comment(
     val id: String,
+    val storyId: String = "",
     val authorName: String,
     val authorAvatar: String,
     val text: String,

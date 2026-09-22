@@ -94,7 +94,7 @@ fun ProfileScreen(
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = uiState.loggedInUserName.take(1),
+                            text = if (uiState.isUserLoggedIn) uiState.loggedInUserName.take(1) else "প",
                             color = Color.White,
                             fontSize = 32.sp,
                             fontWeight = FontWeight.Bold
@@ -105,22 +105,24 @@ fun ProfileScreen(
 
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            text = uiState.loggedInUserName,
+                            text = if (uiState.isUserLoggedIn) uiState.loggedInUserName else "স্বপ্নবাজ সাধারণ পাঠক",
                             fontSize = 18.sp,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface
                         )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Icon(
-                            imageVector = Icons.Default.AutoAwesome,
-                            contentDescription = "Verified Writer",
-                            tint = Color(0xFF0284C7),
-                            modifier = Modifier.size(16.dp)
-                        )
+                        if (uiState.isUserLoggedIn) {
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Icon(
+                                imageVector = Icons.Default.AutoAwesome,
+                                contentDescription = "Verified Writer",
+                                tint = Color(0xFF0284C7),
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
                     }
 
                     Text(
-                        text = uiState.loggedInUserHandle,
+                        text = if (uiState.isUserLoggedIn) uiState.loggedInUserHandle else "@guest_reader",
                         fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -128,7 +130,11 @@ fun ProfileScreen(
                     Spacer(modifier = Modifier.height(8.dp))
 
                     Text(
-                        text = "বাংলা সাহিত্যের চিরন্তন মুগ্ধ পাঠক ও স্বাধীন লেখক। বৃষ্টি এবং একাকীত্ব আমার লেখার রসদ।",
+                        text = if (uiState.isUserLoggedIn) {
+                            uiState.loggedInUserBio.ifBlank { "বাংলা সাহিত্যের চিরন্তন মুগ্ধ পাঠক ও স্বাধীন লেখক।" }
+                        } else {
+                            "আপনি সাধারণ পাঠক হিসেবে সব গল্প, কবিতা ও উপন্যাস পড়ছেন। নিজের লেখা প্রকাশ করতে লেখক হিসেবে লগইন করুন।"
+                        },
                         fontSize = 13.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         lineHeight = 18.sp,
@@ -145,7 +151,7 @@ fun ProfileScreen(
                     ) {
                         ProfileStatItem(count = "${userStories.size}", label = "প্রকাশিত কাজ")
                         Box(modifier = Modifier.width(1.dp).height(24.dp).background(Color.Gray.copy(alpha = 0.3f)))
-                        ProfileStatItem(count = uiState.writerStats.followersCount, label = "অনুসারী (Followers)")
+                        ProfileStatItem(count = if (uiState.isUserLoggedIn) uiState.writerStats.followersCount else "০", label = "অনুসারী (Followers)")
                         Box(modifier = Modifier.width(1.dp).height(24.dp).background(Color.Gray.copy(alpha = 0.3f)))
                         ProfileStatItem(count = "০", label = "অনুসরণ (Following)")
                     }
@@ -157,25 +163,29 @@ fun ProfileScreen(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Button(
-                            onClick = { viewModel.openTipDialog(uiState.loggedInUserName) },
-                            modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(12.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0284C7))
-                        ) {
-                            Icon(Icons.Default.MonetizationOn, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("টিপ / সহায়তা", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        if (uiState.isUserLoggedIn) {
+                            Button(
+                                onClick = { viewModel.openTipDialog(uiState.loggedInUserName) },
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0284C7))
+                            ) {
+                                Icon(Icons.Default.MonetizationOn, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("টিপ / সহায়তা", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            }
                         }
 
-                        OutlinedButton(
+                        Button(
                             onClick = { viewModel.openAuthModal() },
                             modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(12.dp)
+                            shape = RoundedCornerShape(12.dp),
+                            colors = if (!uiState.isUserLoggedIn) ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                                     else ButtonDefaults.outlinedButtonColors()
                         ) {
                             Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(14.dp))
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text("লগইন সেটিংস", fontSize = 12.sp)
+                            Text(if (uiState.isUserLoggedIn) "লেখক প্রোফাইল" else "লেখক লগইন করুন", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -226,15 +236,21 @@ fun ProfileScreen(
                         shape = RoundedCornerShape(14.dp),
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
                     ) {
-                        Column(modifier = Modifier.padding(16.dp)) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(24.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
                             Text(
-                                text = "খসড়া ১: কুয়াশার গান (কবিতা)",
+                                text = "কোনো সংরক্ষিত খসড়া নেই",
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 15.sp
+                                fontSize = 15.sp,
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = "শেষ সম্পাদনা: ৩ দিন আগে • ৮৪ শব্দ",
+                                text = "আপনার লেখার অসম্পূর্ণ খসড়াগুলো এখানে সংরক্ষিত থাকবে।",
                                 fontSize = 12.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -328,14 +344,14 @@ fun WriterDashboardSection(uiState: SwapnobajUiState) {
                 icon = Icons.Default.Visibility,
                 title = "মোট ভিউ",
                 value = uiState.writerStats.totalViews,
-                subtitle = "+১২% বৃদ্ধি এই সপ্তাহে",
+                subtitle = "আপনার লেখার পাঠক",
                 modifier = Modifier.weight(1f)
             )
             AnalyticsCard(
                 icon = Icons.Default.FavoriteBorder,
                 title = "মোট রিঅ্যাকশন",
                 value = uiState.writerStats.totalReactions,
-                subtitle = "লাইক ও ভালোবাসা",
+                subtitle = "পাঠকের ভালোবাসা",
                 modifier = Modifier.weight(1f)
             )
         }
@@ -350,14 +366,14 @@ fun WriterDashboardSection(uiState: SwapnobajUiState) {
                 icon = Icons.Default.ChatBubbleOutline,
                 title = "পাঠকের মন্তব্য",
                 value = uiState.writerStats.totalComments,
-                subtitle = "৯৮% ইতিবাচক প্রতিক্রিয়া",
+                subtitle = "পাঠকের প্রতিক্রিয়া",
                 modifier = Modifier.weight(1f)
             )
             AnalyticsCard(
                 icon = Icons.Default.MonetizationOn,
                 title = "অর্জিত টিপস",
                 value = uiState.writerStats.totalTips,
-                subtitle = "সরাসরি বিকাশ ও রকেটে",
+                subtitle = "সরাসরি লেখক সম্মাননা",
                 modifier = Modifier.weight(1f)
             )
         }

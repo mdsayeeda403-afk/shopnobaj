@@ -292,7 +292,13 @@ fun SwapnobajApp(viewModel: SwapnobajViewModel = viewModel()) {
             AuthModalDialog(
                 isLoggedIn = uiState.isUserLoggedIn,
                 userName = uiState.loggedInUserName,
-                onDismiss = { viewModel.closeAuthModal() }
+                onDismiss = { viewModel.closeAuthModal() },
+                onLoginAuthor = { name, penName, bio ->
+                    viewModel.loginAuthor(name, penName, bio)
+                },
+                onLogoutAuthor = {
+                    viewModel.logoutAuthor()
+                }
             )
         }
     }

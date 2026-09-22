@@ -154,11 +154,6 @@ fun HomeScreen(
             }
         }
 
-        // Daily Literary Inspiration Banner
-        item {
-            DailyInspirationCard(onWriteClick = onNavigateToWrite)
-        }
-
         // Continue Reading Banner (Feature 4 from User Request)
         item {
             val readingStory = uiState.stories.firstOrNull { it.readingProgressPercent > 0 }
@@ -176,120 +171,54 @@ fun HomeScreen(
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 10.dp),
+                        .padding(horizontal = 16.dp, vertical = 20.dp),
                     shape = RoundedCornerShape(22.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                     elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
                 ) {
-                    Column {
-                        // Artistic Literature Hero Artwork
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(175.dp)
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(28.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = "কোনো লেখা প্রকাশিত হয়নি",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "এখানে এখনো কোনো গল্প বা কবিতা নেই। আপনি আপনার মৌলিক গল্প, কবিতা বা উপন্যাস লিখে প্রকাশ করতে পারেন।",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center,
+                            lineHeight = 20.sp
+                        )
+
+                        Spacer(modifier = Modifier.height(20.dp))
+
+                        Button(
+                            onClick = onNavigateToWrite,
+                            shape = RoundedCornerShape(14.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primary
+                            ),
+                            contentPadding = PaddingValues(horizontal = 24.dp, vertical = 12.dp)
                         ) {
-                            Image(
-                                painter = painterResource(id = R.drawable.img_literature_hero),
-                                contentDescription = "Literature Art",
-                                modifier = Modifier.fillMaxSize(),
-                                contentScale = ContentScale.Crop
+                            Icon(
+                                imageVector = Icons.Default.Create,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
                             )
-                            // Soft gradient scrim at bottom
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .background(
-                                        Brush.verticalGradient(
-                                            listOf(
-                                                Color.Transparent,
-                                                MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
-                                                MaterialTheme.colorScheme.surface
-                                            )
-                                        )
-                                    )
-                            )
-                        }
-
-                        Column(
-                            modifier = Modifier
-                                .padding(horizontal = 20.dp)
-                                .padding(bottom = 24.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
+                            Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = "শব্দের জাদুতে সাজুক আপনার ভুবন",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = MaterialTheme.colorScheme.onSurface,
-                                textAlign = TextAlign.Center
+                                text = "লিখুন ও প্রকাশ করুন",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold
                             )
-                            Spacer(modifier = Modifier.height(6.dp))
-                            Text(
-                                text = "আপনার মনের গভীরের ভাবনা, না বলা কথা কিংবা এক টুকরো স্মৃতির গল্প ছড়িয়ে দিন স্বপ্নবাজে। লিখুন ছোটগল্প, কবিতা কিংবা রোমাঞ্চকর ধারাবাহিক উপন্যাস।",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                textAlign = TextAlign.Center,
-                                lineHeight = 20.sp
-                            )
-
-                            Spacer(modifier = Modifier.height(18.dp))
-
-                            Button(
-                                onClick = onNavigateToWrite,
-                                shape = RoundedCornerShape(14.dp),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = MaterialTheme.colorScheme.primary
-                                ),
-                                contentPadding = PaddingValues(horizontal = 22.dp, vertical = 12.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Create,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    text = "প্রথম সৃষ্টি লিখুন",
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-
-                            Spacer(modifier = Modifier.height(20.dp))
-
-                            // Inspirational Quick Prompts
-                            Text(
-                                text = "কিছু অনুপ্রেরণাদায়ক লেখার বিষয়:",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                listOf("বৃষ্টিভেজা চিঠি", "রাতের পদধ্বনি", "স্মৃতির একুশে").forEach { prompt ->
-                                    Box(
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .clip(RoundedCornerShape(10.dp))
-                                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.07f))
-                                            .clickable { onNavigateToWrite() }
-                                            .padding(vertical = 8.dp, horizontal = 4.dp),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Text(
-                                            text = "✍️ $prompt",
-                                            fontSize = 10.sp,
-                                            fontWeight = FontWeight.Medium,
-                                            color = MaterialTheme.colorScheme.primary,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
-                                    }
-                                }
-                            }
                         }
                     }
                 }
@@ -700,84 +629,6 @@ fun ReactionButton(
                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                 color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
             )
-        }
-    }
-}
-
-@Composable
-fun DailyInspirationCard(
-    modifier: Modifier = Modifier,
-    onWriteClick: () -> Unit = {}
-) {
-    Card(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 6.dp),
-        shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.5.dp)
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(
-                    Brush.linearGradient(
-                        colors = listOf(
-                            Color(0xFFEFF6FF), // Soft Blue tint
-                            Color(0xFFDBEAFE).copy(alpha = 0.5f)
-                        )
-                    )
-                )
-                .padding(16.dp)
-        ) {
-            Column {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier
-                                .size(28.dp)
-                                .clip(CircleShape)
-                                .background(Color(0xFF1D4ED8).copy(alpha = 0.15f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.FormatQuote,
-                                contentDescription = null,
-                                tint = Color(0xFF1D4ED8),
-                                modifier = Modifier.size(16.dp)
-                            )
-                        }
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "আজকের সাহিত্যের বাণী",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFF1D4ED8)
-                        )
-                    }
-
-                    Text(
-                        text = "রবীন্দ্রনাথ ঠাকুর",
-                        fontSize = 11.sp,
-                        color = Color(0xFF1E40AF),
-                        fontWeight = FontWeight.Medium
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                Text(
-                    text = "“মেঘ দেখে কেউ করিস নে ভয়, আড়ালে তার সূর্য হাসে— হারা শশীর হারা হাসি, অন্ধকারেই ফিরে আসে।”",
-                    fontSize = 14.sp,
-                    lineHeight = 22.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-            }
         }
     }
 }
